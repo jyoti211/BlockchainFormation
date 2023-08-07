@@ -41,55 +41,71 @@ def wait_till_done(config, ssh_clients, ips, total_time, delta, path, message, t
 
     :return: True if all files with the desired content were created, False otherwise
     """
-
+    print("in util wait")
     status_flags = np.zeros(len(ssh_clients), dtype=bool)
     timer = 0
+    success_message = "SUCCESSFULL"
 
     # TODO: Can this while loop be refactored to be more lean?
-
+    logger.debug(f"status_flags {status_flags}")
+    logger.debug(f"timer {timer}, total_time {total_time} ")
     while (False in status_flags and timer < total_time):
         time.sleep(delta)
         timer += delta
         logger.debug(f" --> Waited {timer} seconds so far, {total_time - timer} seconds left before abort"
                      f"(it usually takes less than {np.ceil(typical_time / 60)} minutes)")
-
+        
         for index, ip in enumerate(ips):
+            logger.debug(f"status_flags[index] {status_flags[index]}")
             if (status_flags[index] == False):
                 try:
                     client_sftp = ssh_clients[index].open_sftp()
+                    logger.debug(f"path for client sftp {path}")
+                    logger.debug(f"code func_part_one {func_part_one}")
+                    logger.debug(f"code func_part_two {func_part_one} {path} {func_part_two}")
+                    logger.debug(f"message {message}")
                     client_sftp.stat(path)
-                    if (message != False):
+                    if (message == False):# earlier it was set to message != False
 
                         if path == False:
                             stdin, stdout, stderr = ssh_clients[index].exec_command(f"{func_part_one}")
                         else:
                             stdin, stdout, stderr = ssh_clients[index].exec_command(f"{func_part_one} {path} {func_part_two}")
 
+                        exit_status = stdout.channel.recv_exit_status()
+
+                        # Check the exit status
+                        if exit_status == 0:
+                            logger.debug("Command executed successfully")
+                        else:
+                            logger.debug("Command execution failed")
+    
                         # read line from stdout
-                        stdout_line = stdout.readlines()[-1]
-                        # logger.debug(f"Read {stdout_line}")
+                        stdout_line = stdout.readlines()[-1].strip()
+                        logger.debug(f"Read {stdout_line}")
 
                         # Check if stdout equals the wanted message
-                        if stdout_line == f"{message}\n":
+                        if stdout_line == f"{success_message}":
                             status_flags[index] = True
-                            # logger.debug(f"   --> ready on {ip}")
+                            message = True
+                            logger.debug(f"   --> ready on {ip}")
                             continue
                         else:
-                            # logger.debug(f"   --> not yet ready on {ip}")
+                            logger.debug(f"   --> not yet ready on {ip}")
                             continue
 
                     # If there is no message we just need to check if path exists (client_sftp.stat(path))
                     status_flags[index] = True
-                    # logger.debug(f"   --> ready on {ip}")
+                    logger.debug(f"   --> ready on {ip}")
 
                 # Try again if SSHException
                 except paramiko.SSHException:
-                    # logger.debug(f"File not yet available on {ip}")
+                    logger.debug(f"File not yet available on {ip}")
                     try:
-                        # logger.debug(f"    --> Reconnecting {ip}...")
+                        logger.debug(f"    --> Reconnecting {ip}...")
                         ssh_key_priv = paramiko.RSAKey.from_private_key_file(config['priv_key_path'])
                         ssh_clients[index].connect(hostname=config['ips'][index], username=config['user'], pkey=ssh_key_priv)
-                        # logger.debug(f"    --> {ip} reconnected")
+                        logger.debug(f"    --> {ip} reconnected")
                         try:
                             client_sftp = ssh_clients[index].open_sftp()
                             client_sftp.stat(path)
@@ -97,32 +113,32 @@ def wait_till_done(config, ssh_clients, ips, total_time, delta, path, message, t
                                 stdin, stdout, stderr = ssh_clients[index].exec_command(f"tail -n 1 {path}")
                                 if stdout.readlines()[0] == f"{message}\n":
                                     status_flags[index] = True
-                                    # logger.debug(f"   --> ready on {ip}")
+                                    logger.debug(f"   --> ready on {ip}")
                                     continue
                                 else:
-                                    # logger.debug(f"   --> not yet ready on {ip}")
+                                    logger.debug(f"   --> not yet ready on {ip}")
                                     continue
 
                             status_flags[index] = True
-                            # logger.debug(f"   --> ready on {ip}")
+                            logger.debug(f"   --> ready on {ip}")
 
                         except Exception as e:
-                            # logger.exception(e)
-                            # logger.debug(f"   --> still not yet ready on {ip}")
+                            logger.exception(e)
+                            logger.debug(f"   --> still not yet ready on {ip}")
                             pass
 
                     except Exception as e:
-                        # logger.exception(e)
-                        # logger.debug("Reconnecting failed")
+                        logger.exception(e)
+                        logger.debug("Reconnecting failed")
                         pass
 
                 except Exception as e:
-                    # logger.exception(e)
-                    # logger.debug(f"   --> not yet ready on {ip}")
+                    logger.exception(e)
+                    logger.debug(f"   --> not yet ready on {ip}")
                     pass
 
         # logger.info(f" --> Ready on {len(np.where(status_flags == True)[0])} out of {len(ips)}")
-
+    logger.debug(f"   --> status_flags {status_flags}")
     return status_flags
 
 
@@ -141,8 +157,18 @@ def yes_or_no(question):
     else:
         return yes_or_no("Please Enter (y/n) ")
 
-
 def wait_and_log(stdout, stderr):
+    exit_status = stdout.channel.recv_exit_status()
+
+    # Check the exit status
+    if exit_status == 0:
+        print("Command executed successfully")
+    else:
+        print("Command execution failed")
+        print(f"stderr_value : {stderr.read().decode('utf-8')}")
+ 
+ #need to check this code   
+def wait_and_log1(stdout, stderr):
     logger = logging.getLogger(__name__)
     try:
         out = stdout.readlines()
@@ -168,3 +194,21 @@ def unique(list1):
             unique_list.append(x)
 
     return unique_list
+
+def check_tessera_status(config, ssh_clients, ips):
+    status_flags = np.zeros(len(ssh_clients), dtype=bool)
+    for index, ip in enumerate(ips):
+        check_health = "curl http://" + f"{ip}" +":9000/upcheck"
+            
+        print(check_health)
+        stdin, stdout, stderr = ssh_clients[index].exec_command(check_health)
+        print(f"stderr_value line 426: {stderr.read().decode('utf-8')}")
+        if stdout.read().decode('utf-8') == "I'm up!":
+            status_flags[index] = True
+            print(f"   --> tessera ready on {ip}")
+            continue
+        else:
+            print(f"   --> tessera not yet ready on {ip}")
+            continue
+    print(f"   --> tessera status_flags {status_flags}")
+    return status_flags

@@ -60,16 +60,16 @@ exec > >(tee /var/log/user_data.log|logger -t user-data -s 2>/dev/console) 2>&1
   sudo service ssh restart
 
   #THIS ONLY WORKS IF THE UNMOUNTED DISK IS THE BIGGEST DISK ON VM
-  UNMOUNTED=`lsblk --noheadings --raw -o NAME,MOUNTPOINT,SIZE | sort -u -h -k 2 | awk '{print $4 " " $1}'  | tail -n 1`
+#   UNMOUNTED=`lsblk --noheadings --raw -o NAME,MOUNTPOINT,SIZE | sort -u -h -k 2 | awk '{print $4 " " $1}'  | tail -n 1`
   #remove whitespace
-  UNMOUNTED=`(echo -e "${UNMOUNTED}" | tr -d '[:space:]')`
-  echo $UNMOUNTED
+#   UNMOUNTED=`(echo -e "${UNMOUNTED}" | tr -d '[:space:]')`
+#   echo $UNMOUNTED
   #mounting disk
   mkdir /data
-  mkfs -t ext4 /dev/$UNMOUNTED
-  mount /dev/$UNMOUNTED /data
-  DISKUUID=`sudo file -s /dev/$UNMOUNTED | awk '{print $8}'`
-  bash -c  "echo '$DISKUUID       /data   ext4    defaults,nofail        0       2' >> /etc/fstab"
+#   echo 'N' | mkfs -t ext4 /dev/$UNMOUNTED 
+#   mount /dev/$UNMOUNTED /data
+#   DISKUUID=`sudo file -s /dev/$UNMOUNTED | awk '{print $8}'`
+#   bash -c  "echo '$DISKUUID       /data   ext4    defaults,nofail        0       2' >> /etc/fstab"
 
   bash -c  "sudo chown -R ubuntu:ubuntu /data"
 
@@ -109,13 +109,10 @@ fi
 
   chmod 777 /home/ubuntu/set_delays.sh
 
-
+whoami
   # switch to normal user
-#cat << EOF | su ubuntu
-#  cd ~
-#
-#  echo "Initial Script finished, Starting more advanced installs now"
-#
-#  #add users with bash shell
-#
-#EOF
+cat << EOF | su ubuntu
+  cd ~
+  echo "Initial Script finished, Starting more advanced installs now"
+  #add users with bash shell
+EOF

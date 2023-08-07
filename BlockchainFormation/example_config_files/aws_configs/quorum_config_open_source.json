@@ -1,6 +1,6 @@
 {
   "instance_provision": "aws",
-  "vm_count": 2,
+  "vm_count": 3,
   "instance_type": "m5.large",
   "image": {
     "image_id": null,
@@ -8,32 +8,31 @@
     "version": 18,
     "permissions": "default"
   },
-  "subnet_id": "subnet-123123",
-  "security_group_id": [
-    "sg-123123"
-  ],
+  "subnet_id": {"eu-west-2":"subnet-0358311883d78ee3a"},
+  "security_group_id":{"eu-west-2": [
+    "sg-033b53b5d1bc54d9c","sg-0f026c5c307249625"
+  ]},
   "proxy": null,
   "user": "ubuntu",
   "profile": "default",
-  "key_name": "test",
-  "aws_credentials": "/home/user/.aws/credentials",
-  "aws_config": "/home/user/.aws/config",
-  "aws_region": "eu-central-1",
+  "key_name": "BlockchainFormationKeyPair",
+  "aws_credentials": "~/.aws/credentials",
+  "aws_config": "~/.aws/config",
+  "aws_region": {"eu-west-2": 3},
   "aws_proxy_settings": null,
-  "priv_key_path": "/path_to_key",
+  "priv_key_path": "DLPS_EU_KEYPAIR.pem",
   "tag_name": "example_conf_quorum",
-  "exp_dir": "/home/user/BlockchainFormation",
+  "exp_dir": "/app/BlockchainFormation",
   "public_ip": true,
   "storage_settings": [
     {
-      "DeviceName": "/dev/sdb",
+      "DeviceName": "/dev/sda1",
       "VirtualName": "string",
       "Ebs": {
         "DeleteOnTermination": true,
         "VolumeSize": 32,
         "VolumeType": "gp2",
-        "Encrypted": true,
-        "KmsKeyId": "arn:aws:kms:123123"
+        "Encrypted": true
       }
     }
   ],
@@ -46,7 +45,6 @@
     "cache": 1024,
     "cache.database": 75,
     "cache.gc": 25,
-    "trie-cache-gens": 120,
     "txpool.rejournal": "0h0m30s",
     "txpool.accountslots": 16,
     "txpool.globalslots": 4096,

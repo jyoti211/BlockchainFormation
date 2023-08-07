@@ -106,7 +106,7 @@ if __name__ == '__main__':
         else:
             logger.info("No config file specified - exiting")
             raise Exception("Missing path to config file")
-
+        print(config)
         node_handler = Node_Handler(config)
         try:
             node_handler.run_general_startup()

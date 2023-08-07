@@ -14,7 +14,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-
+  echo "move to data"
   cd /data
   sudo chown -R ubuntu /data
 
@@ -23,19 +23,58 @@
   sudo apt-get -y upgrade || echo "Upgrading in quorum_bootstrap failed" >> /home/ubuntu/upgrade_fail2.log
 
   # Installing go, java and make
-  echo 'Y' | sudo apt-get install golang-go
-  sudo apt install -y openjdk-8-jre-headless
+  #echo 'Y' |sudo apt-get install golang-go
+  #need to update this go version 1.10 does not work, fails, Installed version 1.18.4
+  #sudo apt remove 'golang-*'
+  sudo wget https://dl.google.com/go/go1.19.linux-amd64.tar.gz
+  sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
+  #sudo mv go /usr/local
+  #GOROOT='export GOROOT=/usr/local/go'
+ # GOPATH='export GOPATH=$HOME/go'
+  #GOCACHE='export GOCACHE=$HOME/.cache/go-build'
+  #PATH='export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'
+  
+ printf '
+  export GOROOT=/usr/local/go
+  export GOPATH=$HOME/go
+  export GOCACHE=$HOME/.cache/go-build
+  export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+ '> /home/ubuntu/profile.sh
+
+  chmod 777 /home/ubuntu/profile.sh
+  source /home/ubuntu/profile.sh
+  echo "GOPATH set"
+  echo $PATH
+  go version
+  go_version=$(go version)
+  echo $go_version
+  #need to check if required
+  go install golang.org/x/crypto/...
+  #go clean -cache
+  #go clean -modcache
+  echo 'Y' | sudo apt install build-essential
+
+
+  #sudo apt install -y openjdk-11-jre-headless
+  #needjava 17 or higher for tessera latest version of 23.04
+  echo 'Y' | sudo apt install openjdk-17-jdk
+
   sudo apt-get install -y make
 
+
+  echo "cloning quorum"
 # Cloning repo and building Quorum binaries...
   git clone https://github.com/jpmorganchase/quorum.git
+  echo "cloned quorum"
   # (cd /data/quorum && git checkout 685f59fb5e08bf9d26fa2b8a1effbb03355b7c4f)
   # (cd /data/quorum && git checkout 99f7fd6733a93ee7619d1c740e0d4cd7643b6700)
   # (cd /data/quorum && git checkout 6005360c90b636ba0fdc5a18ab308b3df2aa289f) # 2.7
   # (cd /data/quorum && git checkout 9339be03f9119ee488b05cf087d103da7e68f053) # 2.6
+  sudo apt install make 
   (cd /data/quorum && make all)
 
 # Copying binaries to /usr/local/bin, which is in path!
+  echo "copied quorum to local bin"
   sudo cp /data/quorum/build/bin/geth /data/quorum/build/bin/bootnode /usr/local/bin
 
 # Creating skeleton genesis block for RAFT consensus
@@ -112,9 +151,20 @@
   mkdir /data/qdata
   mkdir /data/qdata/tm
 
-  (cd /data/tessera && wget https://oss.sonatype.org/service/local/repositories/releases/content/com/jpmorgan/quorum/tessera-app/0.10.0/tessera-app-0.10.0-app.jar)
-  java -jar /data/tessera/tessera-app-0.10.0-app.jar -keygen -filename /data/qdata/tm/tm < /dev/null
+  #old versionnot needed
+  #(cd /data/tessera && wget https://oss.sonatype.org/service/local/repositories/releases/content/com/jpmorgan/quorum/tessera-app/0.10.0/tessera-app-0.10.0-app.jar)
+  (cd /data/tessera && wget https://s01.oss.sonatype.org/service/local/repositories/releases/content/net/consensys/quorum/tessera/tessera-dist/23.4.0/tessera-dist-23.4.0.tar)
+  pwd
+  sudo tar -xf /data/tessera/tessera-dist-23.4.0.tar -C /data/tessera
+  echo "java version"
+  java -version
+  echo "tessera version"
+  sudo /data/tessera/tessera-23.4.0/bin/tessera version
 
+  sudo /data/tessera/tessera-23.4.0/bin/tessera -keygen -filename /data/qdata/tm/tm < /dev/null
+  
+  #wget  https://s01.oss.sonatype.org/service/local/repositories/releases/content/net/consensys/quorum/tessera/tessera-dist/23.4.0/tessera-dist-23.4.0.tar
+  #need to use this
   # Preparing sceleton tessera config
   printf '{
     "useWhiteList": false,
@@ -134,7 +184,7 @@
         {
             "app": "Q2T",
             "enabled": true,
-            "serverAddress": "unix:/data/qdata/tm/tm.ipc",
+            "serverAddress": "unix:/home/ubuntu/tm.ipc",
             "communicationType": "REST"
         },
         {
@@ -180,5 +230,5 @@
 
   # =======  Create success indicator at end of this script ==========
   sudo touch /var/log/user_data_success.log
-
-EOF
+  sudo echo "SUCCESSFULL"
+#EOF

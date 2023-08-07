@@ -220,7 +220,6 @@ class Node_Handler:
                 user_data_specific = content_file.read()
 
             user_data_combined = user_data_base + user_data_specific
-
         return user_data_combined
 
     def run_general_startup(self):
@@ -317,7 +316,7 @@ class Node_Handler:
                         public_ips[pos] = i.public_ip_address
 
             self.logger.info(f"IPs: {ips}")
-
+            self.logger.info(f"Public IPs: {public_ips}")
 
             # add no proxy for all VM IPs
             if self.config['proxy'] is not None:
@@ -446,7 +445,7 @@ class Node_Handler:
 
         # Wait until user Data is finished
         if False in wait_till_done(self.config, self.ssh_clients, self.config['ips'], max_time * 60, 60,
-                                   "/var/log/user_data_success.log", False, normal_time * 60, self.logger):
+                                   "/var/log/user_data.log", False, normal_time * 60, self.logger):
             self.logger.error('Boot up NOT successful')
 
             if yes_or_no("Do you want to shut down the VMs?"):
@@ -592,22 +591,29 @@ class Node_Handler:
         ssh_key_priv = paramiko.RSAKey.from_private_key_file(self.config['priv_key_path'])
 
         if self.logger is not None:
-            # logger.debug(f"Trying to connect the ssh clients")
+            self.logger.debug(f"Trying to connect the ssh clients")
             pass
 
         self.logger.info(self.config['ips'])
+        self.logger.info(f"Public IPs from config: {self.config['pub_ips']}")
         for index, ip in enumerate(self.config['ips']):
             if self.config['public_ip']:
                 # use public ip if exists, else it wont work
                 ip = self.config['pub_ips'][index]
+            self.logger.info(f"ip and index in create_ssh_scp_clients: {ip}, {index}")
             ssh_clients.append(paramiko.SSHClient())
             ssh_clients[index].set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
+            
+            
             while True:
                 try:
+                    self.logger.info(f"connect to ssh client")
+                    self.logger.info(f"index {index}")
+                    self.logger.info(f"ip {ip}")
                     ssh_clients[index].connect(hostname=ip, username=self.config['user'], pkey=ssh_key_priv, timeout=86400, banner_timeout=100, auth_timeout=30)
 
                 except Exception as e:
+                    self.logger.info("in ssh connect exception")
                     if self.logger is not None:
                         self.logger.error(f"{e} on IP {ip}")
                     else:
@@ -624,6 +630,7 @@ class Node_Handler:
                             print(f"{e} on IP {ip}")
 
                 else:
+                    self.logger.info("in ssh connect else case ")
                     break
 
             # SCPCLient takes a paramiko transport as an argument
@@ -635,6 +642,8 @@ class Node_Handler:
 
         self.ssh_clients = ssh_clients
         self.scp_clients = scp_clients
+        self.logger.info(f"ssh_clients {self.ssh_clients}")
+        self.logger.info(f"scp_clients {self.scp_clients}")
 
     def refresh_ssh_scp_clients(self):
 
