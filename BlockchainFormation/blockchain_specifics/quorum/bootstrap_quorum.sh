@@ -17,10 +17,11 @@
   echo "move to data"
   cd /data
   sudo chown -R ubuntu /data
-
+  pwd
+  whoami
   # Getting updates (and upgrades)
-  sudo apt-get update
-  sudo apt-get -y upgrade || echo "Upgrading in quorum_bootstrap failed" >> /home/ubuntu/upgrade_fail2.log
+  #sudo apt-get update
+  #sudo apt-get -y upgrade || echo "Upgrading in quorum_bootstrap failed" >> /home/ubuntu/upgrade_fail2.log
 
   # Installing go, java and make
   #echo 'Y' |sudo apt-get install golang-go
@@ -28,56 +29,34 @@
   #sudo apt remove 'golang-*'
   sudo wget https://dl.google.com/go/go1.19.linux-amd64.tar.gz
   sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
-  #sudo mv go /usr/local
-  #GOROOT='export GOROOT=/usr/local/go'
- # GOPATH='export GOPATH=$HOME/go'
-  #GOCACHE='export GOCACHE=$HOME/.cache/go-build'
-  #PATH='export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'
-  
- printf '
-  export GOROOT=/usr/local/go
-  export GOPATH=$HOME/go
-  export GOCACHE=$HOME/.cache/go-build
-  export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
- '> /home/ubuntu/profile.sh
+pwd
+printf 'export GOROOT=/usr/local/go\n'>> .profile
+printf 'export GOPATH=/home/ubuntu/go\n'>> .profile
+printf 'export GOCACHE=/home/ubuntu/.cache/go-build\n'>> .profile
+printf 'export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin\n'>> .profile
 
-  chmod 777 /home/ubuntu/profile.sh
-  source /home/ubuntu/profile.sh
-  echo "GOPATH set"
-  echo $PATH
+  chmod 777 .profile
+  chown -R ubuntu:ubuntu .profile
+  source .profile
+  #sudo -E -u ubuntu bash -c "source .profile && go version"
+  sudo ln -s /usr/local/go/bin/go /usr/bin/go
   go version
-  go_version=$(go version)
-  echo $go_version
-  #need to check if required
-  go install golang.org/x/crypto/...
-  #go clean -cache
-  #go clean -modcache
+
+
+
   echo 'Y' | sudo apt install build-essential
-
-
-  #sudo apt install -y openjdk-11-jre-headless
-  #needjava 17 or higher for tessera latest version of 23.04
   echo 'Y' | sudo apt install openjdk-17-jdk
-
   sudo apt-get install -y make
-
-
   echo "cloning quorum"
-# Cloning repo and building Quorum binaries...
   git clone https://github.com/jpmorganchase/quorum.git
   echo "cloned quorum"
-  # (cd /data/quorum && git checkout 685f59fb5e08bf9d26fa2b8a1effbb03355b7c4f)
-  # (cd /data/quorum && git checkout 99f7fd6733a93ee7619d1c740e0d4cd7643b6700)
-  # (cd /data/quorum && git checkout 6005360c90b636ba0fdc5a18ab308b3df2aa289f) # 2.7
-  # (cd /data/quorum && git checkout 9339be03f9119ee488b05cf087d103da7e68f053) # 2.6
-  sudo apt install make 
-  (cd /data/quorum && make all)
-
-# Copying binaries to /usr/local/bin, which is in path!
+  pwd
+  cd /data/quorum && make all
   echo "copied quorum to local bin"
+  pwd
   sudo cp /data/quorum/build/bin/geth /data/quorum/build/bin/bootnode /usr/local/bin
 
-# Creating skeleton genesis block for RAFT consensus
+  # Creating skeleton genesis block for RAFT consensus
   printf '{
   "alloc": {
     "0xsubstitute_address": {
@@ -104,7 +83,6 @@
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "timestamp": "0x00"
 }\n' > /data/genesis_raw_raft.json
-
 # Creating skeleton genesis block for IBFT consensus
   printf '{
   "alloc": {
@@ -137,20 +115,16 @@
   "timestamp": "0x00"
 }\n' > /data/genesis_raw_istanbul.json
 
-
 #extra data according to quorum ibft documentation
 #"extraData": "0x0000000000000000000000000000000000000000000000000000000000000000f85ad5942aabbc1bb9bacef60a09764d1a1f4f04a47885c1b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0",
-
 
   # Creating wallets and store the resulting address (needs some cosmetics)
   mkdir /data/nodes
   echo 'user' > /data/nodes/pwd
-
   # Getting (already built, since building mit Libsodium & Maven did not work) tessera-app (jar) and generating tessera keys
   mkdir /data/tessera
   mkdir /data/qdata
   mkdir /data/qdata/tm
-
   #old versionnot needed
   #(cd /data/tessera && wget https://oss.sonatype.org/service/local/repositories/releases/content/com/jpmorgan/quorum/tessera-app/0.10.0/tessera-app-0.10.0-app.jar)
   (cd /data/tessera && wget https://s01.oss.sonatype.org/service/local/repositories/releases/content/net/consensys/quorum/tessera/tessera-dist/23.4.0/tessera-dist-23.4.0.tar)
@@ -160,7 +134,6 @@
   java -version
   echo "tessera version"
   sudo /data/tessera/tessera-23.4.0/bin/tessera version
-
   sudo /data/tessera/tessera-23.4.0/bin/tessera -keygen -filename /data/qdata/tm/tm < /dev/null
   
   #wget  https://s01.oss.sonatype.org/service/local/repositories/releases/content/net/consensys/quorum/tessera/tessera-dist/23.4.0/tessera-dist-23.4.0.tar
@@ -227,7 +200,6 @@
     },
     "alwaysSendTo": []
 }' >> /data/config_raw.json
-
   # =======  Create success indicator at end of this script ==========
   sudo touch /var/log/user_data_success.log
   sudo echo "SUCCESSFULL"

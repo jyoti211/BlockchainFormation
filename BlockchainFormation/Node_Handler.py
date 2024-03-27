@@ -440,8 +440,8 @@ class Node_Handler:
             max_time = 60
             normal_time = 30
         else:
-            max_time = 30
-            normal_time = 10
+            max_time = 60 #increased from 30 to 60
+            normal_time = 30 #increased from 10 to 30
 
         # Wait until user Data is finished
         if False in wait_till_done(self.config, self.ssh_clients, self.config['ips'], max_time * 60, 60,

@@ -17,7 +17,8 @@ import rlp
 import requests
 import json
 import time
-
+from web3 import Web3, HTTPProvider
+import base64
 from BlockchainFormation.utils.utils import *
 
 class Quorum_Network:
@@ -84,7 +85,10 @@ class Quorum_Network:
 
         logger.info("Generating the enode on each node, storing it in enodes, and deriving an account (the coinbase account)")
         for index, _ in enumerate(config['priv_ips']):
-
+            stdin, stdout, stderr = ssh_clients[index].exec_command("pidof geth")
+            pid = stdout.readlines()[0].replace("\n", "")
+            print(f"pid of geth, {pid}")
+            
             stdin, stdout, stderr = ssh_clients[index].exec_command("(bootnode --genkey=nodekey "
                                                                     "&& sudo mkdir /data/nodes/new-node-1 "
                                                                     "&& sudo mv nodekey /data/nodes/new-node-1/nodekey)")
@@ -119,7 +123,6 @@ class Quorum_Network:
         logger.info(f"config['addresses']: {config['addresses']}")
         logger.info("Replacing the genesis_raw.json on each node by genesis.json where the coinbase of the first node has some ether")
         for index, _ in enumerate(config['priv_ips']):
-
             logger.debug("Removing the genesis_raw.json which is not relevant for the consensus")
             if config['quorum_settings']['consensus'].upper() == "IBFT":
                 stdin, stdout, stderr = ssh_clients[index].exec_command("rm /data/genesis_raw_raft.json "
@@ -212,6 +215,12 @@ class Quorum_Network:
         time.sleep(10)
         logger.info("Distributing the money")
         Quorum_Network.split_funds(config, ssh_clients, logger)
+        
+        status_flags = Quorum_Network.verify_network_interconnectivity(config, ssh_clients, logger)
+        if status_flags == False:
+            logger.info("Network interconnectivity check not successful")
+        else :
+            logger.info("Network interconnectivity check successful")   
 
     #@staticmethod
     def start_tessera(config, ssh_clients, logger):
@@ -280,7 +289,7 @@ class Quorum_Network:
             if index == 0:
                 print("start quorum node ",{index})
                 Quorum_Network.start_node(config, ssh_clients, index, logger)
-                time.sleep(5)
+                time.sleep(10)
 
             else:
                 print("start quorum node ",{index})
@@ -288,10 +297,11 @@ class Quorum_Network:
                     pass
                 else:
                     Quorum_Network.add_node(config, ssh_clients, index, logger)
-                    time.sleep(5)
+                    time.sleep(10)
                 Quorum_Network.start_node(config, ssh_clients, index, logger)
-                time.sleep(5)
+                time.sleep(10)
                        
+        #status_flags = Quorum_Network.verify_network_interconnectivity(config, ssh_clients, logger)
         status_flags = Quorum_Network.check_network(config, ssh_clients, logger)
 
         if False in status_flags:
@@ -300,13 +310,12 @@ class Quorum_Network:
                 logger.info("Restarting failed VMs")
                 for node in np.where(status_flags == False):
                     Quorum_Network.restart_node(config, ssh_clients, node, logger)
-
+                #status_flags = Quorum_Network.verify_network_interconnectivity(config, ssh_clients, logger)
                 status_flags = Quorum_Network.check_network(config, ssh_clients, logger)
 
             except Exception as e:
                 logger.exception(e)
                 pass
-
         return status_flags
 
     @staticmethod
@@ -401,7 +410,6 @@ class Quorum_Network:
                                         f">> /home/ubuntu/node.log 2>&1")
                 else:
                     #geth --datadir /data/nodes/new-node-1 --raft --nodiscover --networkid 10 --rpc --rpcaddr 0.0.0.0 --rpcport 21000 --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum,raft
-
                     channel.exec_command(
                                         #f"sudo geth "
                                         f"sudo PRIVATE_CONFIG=/home/ubuntu/tm.ipc geth "
@@ -500,9 +508,10 @@ class Quorum_Network:
                         #sudo geth --exec "admin.peers.length" attach /data/nodes/new-node-1/geth.ipc
                         stdin, stdout, stderr = ssh_clients[index].exec_command('sudo geth --exec "admin.peers.length"  attach /data/nodes/new-node-1/geth.ipc')
                         #out = stdout.readlines()
-
                         nr = stdout.read().decode('utf-8')
-                        if int(nr) == len(config['priv_ips']) - 1:
+                        
+                        #if int(nr) == len(config['priv_ips']) - 1:
+                        if int(nr) >= len(config['priv_ips']) * 51 // 100 : 
                             logger.info(f"Node {index} on IP {ip} is fully connected")
                             status_flags[index] = True
                         else:
@@ -654,3 +663,110 @@ class Quorum_Network:
                 time.sleep(10)  # Wait for 10 seconds before checking again
 
         print("All nodes are fully synced. Proceed with interactions.")
+
+    @staticmethod
+    def verify_network_interconnectivity(config, ssh_clients, logger):
+        Quorum_Network.getAdminPeers(config, ssh_clients, logger)
+        status_flags = Quorum_Network.initiate_transaction(config, ssh_clients, logger)
+        return status_flags
+    
+    @staticmethod
+    def getAdminPeers(config, ssh_clients, logger):
+        node_count = len(config['ips'])
+        print(f"Total Node Count -> {node_count}")
+        for index, ip in enumerate(config['ips']):
+            try:
+                stdin, stdout, stderr = ssh_clients[index].exec_command('sudo geth --exec "admin.peers.length"  attach /data/nodes/new-node-1/geth.ipc')
+                peers_count = stdout.read().decode('utf-8')
+                print(f"peers_count on Node {index}, IP {ip} -> {peers_count}")
+            except Exception as e:
+                logger.exception(e)
+                logger.info(f"peers_count on Node {index}, IP {ip} not available")
+    
+    @staticmethod
+    def initiate_transaction(config, ssh_clients, logger):
+        node_count = len(config['ips'])
+        try:
+            print(f"Transaction initiated between IP {config['ips'][node_count//2]} on address {config['addresses'][node_count//2]} and IP {config['ips'][node_count//2+1]} on address {config['addresses'][node_count//2+1]}")
+            #amount = round(10000000000000000000000000 / len(config['priv_ips']))
+
+            transaction_command = "sudo geth --exec 'eth.sendTransaction({" + f"from: \"{config['addresses'][node_count//2]}\", to: \"{config['addresses'][node_count//2+1]}\", value: 1" + "})' attach /data/nodes/new-node-1/geth.ipc"
+            
+            stdin, stdout, stderr = ssh_clients[node_count//2].exec_command(transaction_command)
+            wait_and_log(stdout, stderr)
+            transaction_hash = stdout.read().decode('utf-8')
+            
+            Quorum_Network.verify_transaction(config, ssh_clients, logger, transaction_hash.strip().strip('"'))
+        except Exception as e:
+            logger.exception(e)
+            logger.info(f"Transaction initiated between Node {node_count/2} and Node {(node_count/2)+1} failed")
+   
+    @staticmethod
+    def verify_transaction(config, ssh_clients, logger, transaction_hash):
+        counter = 0
+        for index, ip in enumerate(config['ips']):
+            try:
+                transaction_command = f"sudo geth --exec 'eth.getTransactionReceipt({transaction_hash}).status' attach /data/nodes/new-node-1/geth.ipc"
+                stdin, stdout, stderr = ssh_clients[index].exec_command(transaction_command)
+                transaction_status = stdout.read().decode('utf-8')
+                if int(transaction_status.strip().strip('"'), 16) == 1:
+                    print(f"Transaction available on node {index} and IP : {ip}")
+                    counter = counter +1
+                else:
+                    print(f"Transaction receipt not available (maybe still pending)")
+            except Exception as e:
+                logger.exception(e)
+                logger.info(f"Not able to find transaction with transaction receipt {transaction_hash}")
+        if counter == len(config['ips']):
+            return True
+        else:
+            return False
+        
+    @staticmethod
+    def initiate_transaction_web3(config, ssh_clients, logger):
+        node_count = len(config['priv_ips'])
+        print(f"Total Node Count web3 -> {node_count}")
+        try:
+            print(f"Transaction initiated between IP {config['priv_ips'][node_count//2]} on address {config['addresses'][node_count//2]} and IP {config['ips'][node_count//2+1]} on address {config['addresses'][node_count//2+1]}")
+            ip = "http://"+config['priv_ips'][node_count//2]+":22000"
+            print(f"ip is , {ip}")
+            web3 = Web3(Web3.HTTPProvider(ip))
+            stdin, stdout, stderr = ssh_clients[node_count//2].exec_command("cat /data/qdata/tm/tm.key")
+            out = stdout.readlines()
+            tessera_private_key = out[3].replace('      "bytes" : ', "").replace('\n', "")
+            print(f"Tessera private key on node {node_count//2}: {tessera_private_key}")
+
+            transaction = {
+                'to': web3.to_checksum_address(config['addresses'][node_count//2+1]),
+                'from': web3.to_checksum_address(config['addresses'][node_count//2]),
+                'value':2
+            }
+            signed_transaction = web3.eth.account.sign_transaction(transaction, private_key=base64.b64decode(tessera_private_key))
+            transaction_hash = web3.eth.send_raw_transaction(signed_transaction.rawTransaction)
+    
+            #transaction_hash = web3.eth.sendTransaction(transaction)
+            print(f"Transaction hash: {transaction_hash.hex()}")
+            #transaction_hash = stdout.read().decode('utf-8')
+            Quorum_Network.verify_transaction_web3(config, ssh_clients, logger, transaction_hash.strip().strip('"'))
+        except Exception as e:
+            logger.exception(e)
+            logger.info(f"Transaction initiated between Node {node_count/2} and Node {(node_count/2)+1} failed")
+   
+    @staticmethod
+    def verify_transaction_web3(config, ssh_clients, logger, transaction_hash):
+        counter = 0
+        for index, ip in enumerate(config['priv_ips']):
+            try:
+                web3 = Web3(Web3.HTTPProvider("http://"+ip+":22000"))
+                receipt = web3.eth.waitForTransactionReceipt(str(transaction_hash))
+                if receipt:
+                    print(f"Transaction verified on IP: {ip}, {index}: Block {receipt['blockNumber']}")
+
+                    
+            except Exception as e:
+                logger.exception(e)
+                logger.info(f"Not able to find transaction with transaction receipt {transaction_hash}")
+        if counter == len(config['ips']):
+            return True
+        else:
+            return False

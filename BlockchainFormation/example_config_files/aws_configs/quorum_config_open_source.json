@@ -1,7 +1,7 @@
 {
   "instance_provision": "aws",
-  "vm_count": 3,
-  "instance_type": "m5.large",
+  "vm_count": 4,
+  "instance_type": "m5.4xlarge",
   "image": {
     "image_id": null,
     "os": "ubuntu",
@@ -18,11 +18,11 @@
   "key_name": "BlockchainFormationKeyPair",
   "aws_credentials": "~/.aws/credentials",
   "aws_config": "~/.aws/config",
-  "aws_region": {"eu-west-2": 3},
+  "aws_region": {"eu-west-2": 4},
   "aws_proxy_settings": null,
   "priv_key_path": "DLPS_EU_KEYPAIR.pem",
-  "tag_name": "example_conf_quorum",
-  "exp_dir": "/app/BlockchainFormation",
+  "tag_name": "blockchain_quorum",
+  "exp_dir": "BlockchainFormation",
   "public_ip": true,
   "storage_settings": [
     {
